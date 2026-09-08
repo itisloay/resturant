@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>قائمة الطعام | QR Menu</title>
+    <!-- مكتبة Supabase للـ JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- مكتبة توليد الـ QR Code مباشرة -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #ff4757;
+            --secondary-color: #2f3542;
+            --bg-color: #f1f2f6;
+            --card-bg: #ffffff;
+            --text-color: #333333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-color);
+            margin: 0;
+            padding: 0;
+            color: var(--text-color);
+            padding-bottom: 40px;
+        }
+
+        header {
+            background: var(--secondary-color);
+            color: white;
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* زرار إظهار الـ QR Code */
+        .qr-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+
+        .qr-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* أيقونة السلة العلوية */
+        .cart-icon-container {
+            position: relative;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .cart-icon-container:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .cart-icon-container svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+
+        .cart-badge {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            background: var(--primary-color);
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease;
+        }
+
+        @keyframes bounce {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+
+        .animate-bounce {
+            animation: bounce 0.3s ease;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 15px;
+        }
+
+        .table-box {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .table-box label {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .table-box input {
+            padding: 10px;
+            width: 90px;
+            text-align: center;
+            font-size: 18px;
+            border: 2px solid #dfe4ea;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .table-box input:focus {
+            border-color: var(--primary-color);
+        }
+
+        .category-section {
+            margin-bottom: 30px;
+        }
+
+        .category-section h2 {
+            font-size: 20px;
+            color: var(--secondary-color);
+            border-right: 4px solid var(--primary-color);
+            padding-right: 10px;
+            margin-bottom: 15px;
+        }
+
+        .items-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 15px;
+        }
+
+        .menu-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s;
+        }
+
+        .menu-card:hover {
+            transform: translateY(-3px);
+        }
+
+        .menu-card img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            background: #dfe4ea;
+        }
+
+        .card-content {
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+
+        .card-content h3 {
+            margin: 0 0 8px 0;
+            font-size: 18px;
+            color: #2f3542;
+        }
+
+        .card-content p {
+            margin: 0 0 15px 0;
+            color: #747d8c;
+            font-size: 13px;
+            flex-grow: 1;
+            line-height: 1.4;
+        }
+
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: auto;
+        }
+
+        .price {
+            color: var(--primary-color);
+            font-weight: bold;
+            font-size: 17px;
+        }
+
+        .add-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+
+        .add-btn:hover {
+            background: #ff3838;
+        }
+
+        /* نافذة الـ QR Code المنبثقة */
+        #qr-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1100;
+            padding: 15px;
+        }
+
+        .qr-modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 16px;
+            text-align: center;
+            max-width: 320px;
+            width: 100%;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.2);
+        }
+
+        .qr-modal-content h3 {
+            margin-top: 0;
+            color: var(--secondary-color);
+        }
+
+        #qrcode-container {
+            display: flex;
+            justify-content: center;
+            margin: 15px 0;
+        }
+
+        .close-qr-btn {
+            background: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* تصميم نافذة السلة المنبثقة (Modal) */
+        #cart-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            padding: 15px;
+        }
+
+        .modal-content {
+            background: white;
+            width: 100%;
+            max-width: 480px;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            max-height: 85vh;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 12px;
+            margin-bottom: 15px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 20px;
+            color: var(--secondary-color);
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #747d8c;
+        }
+
+        .cart-items-list {
+            overflow-y: auto;
+            max-height: 45vh;
+            margin-bottom: 15px;
+            padding-left: 5px;
+        }
+
+        .cart-item-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f2f6;
+            gap: 12px;
+        }
+
+        .cart-item-img {
+            width: 55px;
+            height: 55px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: #dfe4ea;
+            flex-shrink: 0;
+        }
+
+        .cart-item-details {
+            flex-grow: 1;
+        }
+
+        .cart-item-details h4 {
+            margin: 0 0 4px 0;
+            font-size: 15px;
+            color: #2f3542;
+        }
+
+        .unit-price {
+            color: var(--primary-color);
+            font-size: 13px;
+            font-weight: bold;
+            display: block;
+        }
+
+        .cart-item-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .qty-controls {
+            display: flex;
+            align-items: center;
+            background: #f1f2f6;
+            border-radius: 6px;
+            padding: 2px;
+        }
+
+        .qty-controls button {
+            background: white;
+            border: none;
+            width: 26px;
+            height: 26px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: background 0.2s;
+        }
+
+        .qty-controls button:hover {
+            background: #dfe4ea;
+        }
+
+        .qty-controls input {
+            width: 40px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+            border: none;
+            background: transparent;
+            outline: none;
+            color: var(--text-color);
+        }
+
+        .qty-controls input::-webkit-outer-spin-button,
+        .qty-controls input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .delete-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #a4b0be;
+            padding: 5px;
+            transition: color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .delete-btn:hover {
+            color: var(--primary-color);
+        }
+
+        .delete-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        .modal-footer {
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .total-price-box {
+            display: flex;
+            justify-content: space-between;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .checkout-btn {
+            background: #2ed573;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            width: 100%;
+            transition: background 0.2s;
+        }
+
+        .checkout-btn:hover {
+            background: #26af5f;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>🍔 مطعمنا الذكي</h1>
+        <div class="header-actions">
+            <!-- زرار عرض QR Code -->
+            <button class="qr-btn" onclick="toggleQRModal()">📷 QR Code</button>
+            
+            <div class="cart-icon-container" onclick="toggleCartModal()" title="سلة الطلبات">
+                <svg viewBox="0 0 24 24">
+                    <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/>
+                </svg>
+                <div id="cart-badge" class="cart-badge" style="display: none;">0</div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="table-box">
+            <label for="tableNum">رقم الترابيزة:</label>
+            <input type="number" id="tableNum" min="0" max="100" placeholder="0 - 100" oninput="validateTableNumber(this)">
+        </div>
+
+        <div id="menu-container">
+            <p style="text-align: center; color: #747d8c;">جاري تحميل القائمة...</p>
+        </div>
+    </div>
+
+    <!-- نافذة QR Code المنبثقة -->
+    <div id="qr-modal" onclick="if(event.target === this) toggleQRModal()">
+        <div class="qr-modal-content">
+            <h3>QR Code المنيو</h3>
+            <p style="font-size: 13px; color: #747d8c;">امسح الكود لفتح القائمة على الموبايل</p>
+            <div id="qrcode-container"></div>
+            <button class="close-qr-btn" onclick="toggleQRModal()">إغلاق</button>
+        </div>
+    </div>
+
+    <div id="cart-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🛒 سلة الطلبات</h2>
+                <button class="close-modal" onclick="toggleCartModal()">&times;</button>
+            </div>
+            
+            <div class="cart-items-list" id="cart-items-container">
+                <p style="text-align: center; color: #747d8c;">السلة فارغة حالياً</p>
+            </div>
+
+            <div class="modal-footer">
+                <div class="total-price-box">
+                    <span>الإجمالي الكلي:</span>
+                    <span id="modal-total-price">0 ج.م</span>
+                </div>
+                <button class="checkout-btn" onclick="sendOrder()">تأكيد وإرسال الأوردر 🚀</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://udcblujymnsmppyiajqe.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_LatciYdV3untVkTB6A4DhQ_UniHrVPZ';
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let cart = [];
+        let qrGenerated = false;
+
+        // توليد الـ QR Code تلقائياً برابط الـ ngrok الحالي أو الرابط المفتوح
+        function generateQRCode() {
+            if (qrGenerated) return;
+            const container = document.getElementById('qrcode-container');
+            container.innerHTML = '';
+            
+            // استخدام رابط الـ ngrok أو الرابط الحالي للموقع
+            const currentUrl = window.location.href;
+
+            new QRCode(container, {
+                text: currentUrl,
+                width: 180,
+                height: 180,
+                colorDark: "#2f3542",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+            qrGenerated = true;
+        }
+
+        function toggleQRModal() {
+            let modal = document.getElementById('qr-modal');
+            if (modal.style.display === 'flex') {
+                modal.style.display = 'none';
+            } else {
+                modal.style.display = 'flex';
+                generateQRCode();
+            }
+        }
+
+        async function fetchMenu() {
+            const container = document.getElementById('menu-container');
+            container.innerHTML = '';
+
+            let { data: categories, error: catError } = await _supabase.from('categories').select('*').order('display_order');
+            if (catError) {
+                container.innerHTML = '<p style="text-align:center; color:red;">خطأ في تحميل القائمة</p>';
+                return;
+            }
+
+            if (!categories || categories.length === 0) {
+                container.innerHTML = '<p style="text-align:center;">لا توجد أقسام متاحة حالياً.</p>';
+                return;
+            }
+
+            for (let cat of categories) {
+                let { data: items, error: itemError } = await _supabase.from('menu_items')
+                    .select('*')
+                    .eq('category_id', cat.id)
+                    .eq('is_available', true);
+                
+                if (items && items.length > 0) {
+                    let catDiv = document.createElement('div');
+                    catDiv.className = 'category-section';
+                    catDiv.innerHTML = `<h2>${cat.name}</h2>`;
+
+                    let gridDiv = document.createElement('div');
+                    gridDiv.className = 'items-grid';
+
+                    items.forEach(item => {
+                        let imgSrc = item.image ? item.image : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60';
+                        
+                        gridDiv.innerHTML += `
+                            <div class="menu-card">
+                                <img src="${imgSrc}" alt="${item.name}">
+                                <div class="card-content">
+                                    <h3>${item.name}</h3>
+                                    <p>${item.description || 'وجبة شهية ومحضرة طازجة خصيصاً لك.'}</p>
+                                    <div class="card-footer">
+                                        <span class="price">${item.price} ج.م</span>
+                                        <button class="add-btn" onclick="addToCart(${item.id}, '${item.name}', ${item.price}, '${imgSrc}')">إضافة</button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    catDiv.appendChild(gridDiv);
+                    container.appendChild(catDiv);
+                }
+            }
+        }
+
+        function validateTableNumber(input) {
+            let val = parseInt(input.value);
+            if (!isNaN(val)) {
+                if (val < 0) input.value = 0;
+                if (val > 100) input.value = 100;
+            }
+        }
+
+        function addToCart(id, name, price, image) {
+            let existing = cart.find(i => i.id === id);
+            if (existing) {
+                if (existing.quantity < 100) {
+                    existing.quantity++;
+                }
+            } else {
+                cart.push({ id, name, price, image, quantity: 1 });
+            }
+            updateCartUI();
+        }
+
+        function changeQuantity(id, change) {
+            let item = cart.find(i => i.id === id);
+            if (item) {
+                let newQty = item.quantity + change;
+                if (newQty >= 1 && newQty <= 100) {
+                    item.quantity = newQty;
+                    updateCartUI();
+                }
+            }
+        }
+
+        function updateQuantityDirectly(id, value) {
+            let item = cart.find(i => i.id === id);
+            if (item) {
+                let parsedVal = parseInt(value);
+                if (!isNaN(parsedVal)) {
+                    item.quantity = parsedVal;
+                    
+                    let totalCount = cart.reduce((sum, i) => sum + i.quantity, 0);
+                    let totalPrice = cart.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+                    
+                    let badge = document.getElementById('cart-badge');
+                    if (totalCount > 0) {
+                        badge.innerText = totalCount;
+                        badge.style.display = 'flex';
+                    }
+                    document.getElementById('modal-total-price').innerText = totalPrice + ' ج.م';
+                }
+            }
+        }
+
+        function validateQuantity(inputElement, id) {
+            let item = cart.find(i => i.id === id);
+            if (item) {
+                let val = parseInt(inputElement.value);
+                if (isNaN(val) || val < 1) {
+                    item.quantity = 1;
+                } else if (val > 100) {
+                    item.quantity = 100;
+                } else {
+                    item.quantity = val;
+                }
+                updateCartUI();
+            }
+        }
+
+        function removeFromCart(id) {
+            cart = cart.filter(i => i.id !== id);
+            updateCartUI();
+        }
+
+        function updateCartUI() {
+            let totalCount = cart.reduce((sum, i) => sum + i.quantity, 0);
+            let totalPrice = cart.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+
+            let badge = document.getElementById('cart-badge');
+            if (totalCount > 0) {
+                badge.innerText = totalCount;
+                badge.style.display = 'flex';
+                badge.classList.remove('animate-bounce');
+                void badge.offsetWidth;
+                badge.classList.add('animate-bounce');
+            } else {
+                badge.style.display = 'none';
+            }
+
+            let container = document.getElementById('cart-items-container');
+            if (cart.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #747d8c; padding: 20px 0;">السلة فارغة حالياً</p>';
+            } else {
+                container.innerHTML = '';
+                cart.forEach(item => {
+                    container.innerHTML += `
+                        <div class="cart-item-row">
+                            <img src="${item.image}" alt="${item.name}" class="cart-item-img">
+                            <div class="cart-item-details">
+                                <h4>${item.name}</h4>
+                                <span class="unit-price" style="color: var(--primary-color);">${item.price} ج.م</span>
+                            </div>
+                            <div class="cart-item-actions">
+                                <div class="qty-controls">
+                                    <button onclick="changeQuantity(${item.id}, -1)">-</button>
+                                    <input type="number" value="${item.quantity}" 
+                                        oninput="updateQuantityDirectly(${item.id}, this.value)" 
+                                        onblur="validateQuantity(this, ${item.id})">
+                                    <button onclick="changeQuantity(${item.id}, 1)">+</button>
+                                </div>
+                                <button class="delete-btn" onclick="removeFromCart(${item.id})" title="إزالة الصنف">
+                                    <svg viewBox="0 0 24 24">
+                                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            document.getElementById('modal-total-price').innerText = totalPrice + ' ج.م';
+        }
+
+        function toggleCartModal() {
+            let modal = document.getElementById('cart-modal');
+            modal.style.display = modal.style.display === 'flex' ? 'none' : 'flex';
+        }
+
+        async function sendOrder() {
+            let tableNumber = document.getElementById('tableNum').value;
+            if (tableNumber === '') {
+                alert('من فضلك ادخل رقم الترابيزة أولاً!');
+                toggleCartModal();
+                document.getElementById('tableNum').focus();
+                return;
+            }
+            if (cart.length === 0) {
+                alert('السلة فارغة!');
+                return;
+            }
+
+            let total = cart.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+
+            let { data: orderData, error: orderError } = await _supabase.from('orders').insert([
+                {
+                    guest_table_number: tableNumber,
+                    order_type: 'dine_in',
+                    status: 'pending',
+                    total_amount: total,
+                    final_amount: total
+                }
+            ]).select().single();
+
+            if (orderError) {
+                alert('حدث خطأ أثناء إرسال الأوردر: ' + orderError.message);
+                return;
+            }
+
+            let orderId = orderData.id;
+            let orderItemsData = cart.map(i => ({
+                order_id: orderId,
+                menu_item_id: i.id,
+                quantity: i.quantity,
+                unit_price: i.price
+            }));
+
+            let { error: itemsError } = await _supabase.from('order_items').insert(orderItemsData);
+
+            if (itemsError) {
+                alert('خطأ في حفظ تفاصيل الأوردر');
+                return;
+            }
+
+            alert('تم إرسال طلبك بنجاح! بالعافية 🍔✨');
+            cart = [];
+            updateCartUI();
+            toggleCartModal();
+            document.getElementById('tableNum').value = '';
+        }
+
+        fetchMenu();
+    </script>
+</body>
+</html>
